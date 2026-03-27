@@ -267,3 +267,79 @@ def enrich_qcmobile(carriers):
 
     print(f"Phase 3a complete: {len(qualified)}/{len(carriers)} qualified (fleet 2-50, active, US)")
     return qualified
+
+
+# ── Phase 3b: FMCSA SMS CSA Score Scraping ───────────────────────────────────
+def scrape_csa_scores(dot):
+    """
+    Scrape CSA percentile scores from FMCSA SMS Overview page.
+    Returns dict of {basic_name: score_float} for basics above threshold.
+    Returns {} if page unavailable or bot-protected.
+    """
+    url = f"https://ai.fmcsa.dot.gov/SMS/Carrier/{dot}/Overview.aspx"
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            }
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+    except Exception:
+        return {}
+
+    # Regex patterns for each BASIC percentile score in the SMS HTML
+    # The page renders scores as numbers adjacent to BASIC names
+    patterns = {
+        "Unsafe Driving":                  r"Unsafe\s+Driving[^0-9]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%?",
+        "HOS Compliance":                  r"Hours.of.Service[^0-9]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%?",
+        "Driver Fitness":                  r"Driver\s+Fitness[^0-9]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%?",
+        "Controlled Substances/Alcohol":   r"Controlled\s+Substances[^0-9]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%?",
+        "Vehicle Maintenance":             r"Vehicle\s+Maintenance[^0-9]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%?",
+        "Hazardous Materials Compliance":  r"Hazardous\s+Materials[^0-9]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%?",
+        "Crash Indicator":                 r"Crash\s+Indicator[^0-9]{0,80}?(\d{1,3}(?:\.\d+)?)\s*%?",
+    }
+
+    scores = {}
+    for basic, pattern in patterns.items():
+        match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+        if match:
+            val = float(match.group(1))
+            if val <= 100:  # sanity check -- percentile can't exceed 100
+                scores[basic] = val
+    return scores
+
+
+def enrich_csa(carriers):
+    """
+    Scrape CSA scores per carrier. Tag csa signal if any BASIC above threshold.
+    Capture csaCategory (highest-scoring BASIC above threshold) and csaScore.
+    Falls back gracefully if SMS page is unavailable.
+    """
+    for c in carriers:
+        c.setdefault("csa_category", "")
+        c.setdefault("csa_score", "")
+        c.setdefault("csa_basics_above", 0)
+
+        scores = scrape_csa_scores(c["dot_number"])
+        above = {
+            basic: score
+            for basic, score in scores.items()
+            if score >= CSA_THRESHOLDS.get(basic, 100)
+        }
+
+        if above:
+            top_basic = max(above, key=above.get)
+            c["csa_category"] = top_basic
+            c["csa_score"] = str(int(above[top_basic]))
+            c["csa_basics_above"] = len(above)
+            if "csa" not in c["signals"]:
+                c["signals"].append("csa")
+
+        time.sleep(1.0)
+
+    csa_count = sum(1 for c in carriers if "csa" in c["signals"])
+    print(f"Phase 3b complete: {csa_count}/{len(carriers)} carriers with CSA above threshold")
+    return carriers
