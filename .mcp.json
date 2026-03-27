@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "instantly": {
+      "type": "http",
+      "url": "https://mcp.instantly.ai/mcp/ZWU5MTFiNjEtZDg3YS00ZjcwLTlkMDEtYzVkMjI4ZGEwMzViOlNXbUpJZ0JBZ3JBWA=="
+    },
+    "meta-ads": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\mcp-servers\\meta_ads_mcp\\server.py"
+      ],
+      "env": {
+        "META_ACCESS_TOKEN": "",
+        "META_AD_ACCOUNT_ID": "",
+        "META_APP_ID": "",
+        "META_APP_SECRET": ""
+      }
+    }
+  }
+}

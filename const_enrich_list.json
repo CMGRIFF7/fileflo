@@ -1,0 +1,282 @@
+[
+    {
+        "apollo_id":  {
+                          "value":  "66fb3ad4de72ed00016bd86c",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  1
+                      },
+        "first_name":  "Timothy",
+        "org_name":  "Wier Commercial Construction",
+        "title":  "Vice President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "66f602e4bfa7b400012579ba",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  2
+                      },
+        "first_name":  "Gary",
+        "org_name":  "Allbrite Construction",
+        "title":  "President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "60fc332c9499310001af277f",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  3
+                      },
+        "first_name":  "Nathan",
+        "org_name":  "Wier Commercial Construction",
+        "title":  "Vice President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "60fe58bff1705b0001d2cc1e",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  4
+                      },
+        "first_name":  "Andrew",
+        "org_name":  "HBI Commercial Construction, Inc.",
+        "title":  "President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "6727bc945781e3000180e9da",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  5
+                      },
+        "first_name":  "Priyank",
+        "org_name":  "Reliable Commercial Construction",
+        "title":  "Vice President of Project Management"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "6314ede91bf56b000123d0cf",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  6
+                      },
+        "first_name":  "Eddie",
+        "org_name":  "Si Construction",
+        "title":  "President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "54a5abfc746869367675b69f",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  7
+                      },
+        "first_name":  "Rosanna",
+        "org_name":  "Russell Construction Company",
+        "title":  "Owner, Project Manager"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "61090a30358e890001b361f2",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  8
+                      },
+        "first_name":  "Thomas",
+        "org_name":  "Beauchamp Construction Co., Inc.",
+        "title":  "President/Owner"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "54a21fdb74686935bef2bf0e",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  9
+                      },
+        "first_name":  "Joey",
+        "org_name":  "Ridgemont Commercial Construction",
+        "title":  "President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "66fec8e48c75540001ab330e",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  10
+                      },
+        "first_name":  "Peter",
+        "org_name":  "Wier Commercial Construction",
+        "title":  "Vice President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "66fdf376dd6584000140ac85",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  11
+                      },
+        "first_name":  "Mike",
+        "org_name":  "Unger Construction",
+        "title":  "President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "5ac9a047a6da9840ef5b0065",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  12
+                      },
+        "first_name":  "Mark",
+        "org_name":  "Sierra View General Contractor",
+        "title":  "President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "66fcbeb658915a00010f7b3c",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  13
+                      },
+        "first_name":  "Clint",
+        "org_name":  "Wier Commercial Construction",
+        "title":  "President"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "66f2f8d4d4cd1b00012afd36",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  14
+                      },
+        "first_name":  "Chad",
+        "org_name":  "Patriot Construction, Inc.",
+        "title":  "Owner"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "66f2d20d23360a00011a519f",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  15
+                      },
+        "first_name":  "Dave",
+        "org_name":  "Reliable Commercial Construction",
+        "title":  "Vice President Operations"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "66fc498a67c55b00013fbcb8",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  16
+                      },
+        "first_name":  "Jake",
+        "org_name":  "Cord Construction Company",
+        "title":  "President/Owner"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "5ce2e2ac80f93e120686b05c",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  17
+                      },
+        "first_name":  "Melissa",
+        "org_name":  "Toney Construction Services",
+        "title":  "Safety Director"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "5ef63798817dc2000111667e",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  18
+                      },
+        "first_name":  "John",
+        "org_name":  "McHugh Construction",
+        "title":  "Safety Director"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "5b20e9a6a6da98eed3eb71b6",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  19
+                      },
+        "first_name":  "Jonathan",
+        "org_name":  "Corvus Construction Company, Inc.",
+        "title":  "Safety Director"
+    },
+    {
+        "apollo_id":  {
+                          "value":  "5b185be0a6da98cbfa5a6044",
+                          "PSPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)\\top_construction_ids.txt",
+                          "PSParentPath":  "C:\\Users\\ChadGriffith\\Downloads\\fileflo-f11afbf5-main (2)",
+                          "PSChildName":  "top_construction_ids.txt",
+                          "PSDrive":  "C",
+                          "PSProvider":  "Microsoft.PowerShell.Core\\FileSystem",
+                          "ReadCount":  20
+                      },
+        "first_name":  "Troy",
+        "org_name":  "Ridgemont Commercial Construction",
+        "title":  "Director of Field Operations \u0026 Safety Director"
+    }
+]
