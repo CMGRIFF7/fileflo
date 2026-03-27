@@ -53,7 +53,7 @@ def collect_signals(batch_size=1000):
 
     # ── Recent inspections (last 30 days) for OOS signal ──
     insp_where  = f"insp_date > '{cutoff_30}' AND insp_interstate = 'Y'"
-    insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total,viol_total"
+    insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total"
     insp_url = (
         "https://data.transportation.gov/resource/fx4q-ay7w.json?"
         + "$where=" + urllib.parse.quote(insp_where)
@@ -99,12 +99,15 @@ def collect_signals(batch_size=1000):
                 dots[dot]["latest_inspection_ts"] = ts
                 dots[dot]["latest_inspection_date"] = readable
 
-        if oos > 0 and "oos" not in dots[dot]["signals"]:
-            dots[dot]["signals"].append("oos")
-            dots[dot]["oos_count"] = oos
-            dots[dot]["violation_date"] = readable
-            dots[dot]["violation_location"] = row.get("insp_carrier_state", "")
-            dots[dot]["violation_type"] = "out-of-service"
+        if oos > 0:
+            dots[dot]["oos_count"] += oos
+            if "oos" not in dots[dot]["signals"]:
+                dots[dot]["signals"].append("oos")
+                # violation_date and location from the most recent OOS inspection (rows sorted DESC)
+                if not dots[dot]["violation_date"]:
+                    dots[dot]["violation_date"] = readable
+                    dots[dot]["violation_location"] = row.get("insp_carrier_state", "")
+                    dots[dot]["violation_type"] = "out-of-service"
 
     print(f"Phase 1a: {len(insp_rows)} inspection rows -> {len(dots)} unique DOTs")
 
@@ -167,7 +170,7 @@ def collect_signals(batch_size=1000):
 # ── Phase 2: Cross-Run Deduplication ─────────────────────────────────────────
 def filter_seen_dots(carriers):
     """Skip DOTs processed in last 90 days."""
-    cutoff = datetime.now() - timedelta(days=90)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
 
     processed = {}
     if os.path.exists(PROCESSED_DOTS_FILE):
@@ -182,7 +185,10 @@ def filter_seen_dots(carriers):
         dot = c["dot_number"]
         if dot in processed:
             try:
-                pd = datetime.fromisoformat(processed[dot].get("processed_date", "1970-01-01"))
+                pd_str = processed[dot].get("processed_date", "1970-01-01")
+                pd = datetime.fromisoformat(pd_str)
+                if pd.tzinfo is None:
+                    pd = pd.replace(tzinfo=timezone.utc)
                 if pd > cutoff:
                     skipped += 1
                     continue
