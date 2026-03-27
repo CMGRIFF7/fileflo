@@ -127,7 +127,7 @@ def collect_signals(backlog_offset=0):
     fresh_dots  = _rows_to_dots(fresh_rows)
     fresh_sorted = sorted(fresh_dots.values(), key=lambda x: x["latest_inspection_ts"], reverse=True)
     fresh_slice  = fresh_sorted[:FRESH_SIZE]
-    print(f"Phase 1a (fresh ≤{FRESH_DAYS}d): {len(fresh_rows)} rows -> {len(fresh_dots)} DOTs -> {len(fresh_slice)} selected")
+    print(f"Phase 1a (fresh <={FRESH_DAYS}d): {len(fresh_rows)} rows -> {len(fresh_dots)} DOTs -> {len(fresh_slice)} selected")
 
     # ── Backlog tier: days FRESH_DAYS+1 through 30 ────────────────────────────
     backlog_where = (f"insp_date > '{cutoff_30}' AND insp_date <= '{cutoff_fresh}'"
