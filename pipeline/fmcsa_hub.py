@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+"""
+FMCSA Signal Hub — Pipeline Script
+Phases 1-4: Signal Collection, Dedup, Enrichment, Scoring
+Outputs pipeline/hub_output.json for Claude MCP contact-finding
+"""
+import argparse
+import json
+import os
+import re
+import time
+import urllib.request
+import urllib.parse
+from datetime import datetime, timedelta, timezone
+from html.parser import HTMLParser
+
+# ── Constants ────────────────────────────────────────────────────────────────
+WEBKEY = "ea050d55fc6f7368ffa7e575d6b021e87d60fea0"
+
+MEMORY_DIR = r"C:\Users\ChadGriffith\.claude\projects\C--Users-ChadGriffith-Downloads-fileflo-f11afbf5-main--2-\memory"
+PROCESSED_DOTS_FILE = os.path.join(MEMORY_DIR, "processed-dots.json")
+PHONE_ONLY_FILE = os.path.join(MEMORY_DIR, "phone-only-carriers.json")
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_FILE = os.path.join(SCRIPT_DIR, "hub_output.json")
+
+CAMPAIGN_IDS = {
+    "safety_rating": "a4f77f6e-3033-4db0-8b1e-f128b5bfbdd6",
+    "oos":           "b514c694-b372-4d89-8b93-6ed325571963",
+    "violation_history": "8f41f5d5-a3f8-41f2-9143-b01bfa5bdc8b",
+    "csa":           "53b6c3d3-e4d6-4067-be6e-87542f1be716",
+}
+
+PRIORITY_ORDER = ["safety_rating", "oos", "violation_history", "csa"]
+
+CSA_THRESHOLDS = {
+    "Unsafe Driving": 65,
+    "HOS Compliance": 65,
+    "Crash Indicator": 65,
+    "Driver Fitness": 80,
+    "Controlled Substances/Alcohol": 80,
+    "Vehicle Maintenance": 80,
+    "Hazardous Materials Compliance": 80,
+}
+
+# ── Phase 1: Signal Collection ────────────────────────────────────────────────
+def collect_signals(batch_size=1000):
+    """Pull Socrata inspections + violations. Return merged DOT list sorted by recency."""
+    now = datetime.now(timezone.utc)
+    cutoff_30  = (now - timedelta(days=30)).strftime("%Y%m%d")
+    cutoff_365 = (now - timedelta(days=365)).strftime("%Y%m%d")
+
+    # ── Inspections (last 30 days, all interstate) ──
+    insp_where  = f"insp_date > '{cutoff_30}' AND insp_interstate = 'Y'"
+    insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total"
+    insp_url = (
+        "https://data.transportation.gov/resource/fx4q-ay7w.json?"
+        + "$where=" + urllib.parse.quote(insp_where)
+        + "&$select=" + urllib.parse.quote(insp_select)
+        + "&$order=" + urllib.parse.quote("insp_date DESC")
+        + "&$limit=50000"
+    )
+    with urllib.request.urlopen(insp_url, timeout=30) as resp:
+        insp_rows = json.loads(resp.read().decode("utf-8"))
+
+    dots = {}
+    for row in insp_rows:
+        dot = row.get("dot_number", "").strip()
+        if not dot:
+            continue
+        raw = str(row.get("insp_date", ""))[:8]
+        try:
+            readable = datetime.strptime(raw, "%Y%m%d").strftime("%B %d, %Y")
+            ts       = datetime.strptime(raw, "%Y%m%d").isoformat()
+        except Exception:
+            readable = raw
+            ts = "1970-01-01"
+
+        oos = int(row.get("oos_total") or 0)
+
+        if dot not in dots:
+            dots[dot] = {
+                "dot_number": dot,
+                "carrier_name": row.get("insp_carrier_name", ""),
+                "city": row.get("insp_carrier_city", ""),
+                "state": row.get("insp_carrier_state", ""),
+                "latest_inspection_date": readable,
+                "latest_inspection_ts": ts,
+                "signals": [],
+                "oos_count": 0,
+                "violation_count": 0,
+                "violation_date": "",
+                "violation_location": "",
+                "violation_type": "",
+            }
+        else:
+            # keep most recent
+            if ts > dots[dot]["latest_inspection_ts"]:
+                dots[dot]["latest_inspection_ts"] = ts
+                dots[dot]["latest_inspection_date"] = readable
+
+        if oos > 0 and "oos" not in dots[dot]["signals"]:
+            dots[dot]["signals"].append("oos")
+            dots[dot]["oos_count"] = oos
+            dots[dot]["violation_date"] = readable
+            dots[dot]["violation_location"] = row.get("insp_carrier_state", "")
+            dots[dot]["violation_type"] = "out-of-service"
+
+    print(f"Phase 1a: {len(insp_rows)} inspection rows → {len(dots)} unique DOTs")
+
+    # ── Violations (last 12 months, 3+ per carrier) ──
+    try:
+        viol_where  = f"inspdate > '{cutoff_365}'"
+        viol_select = "dotnum,inspdate"
+        viol_url = (
+            "https://data.transportation.gov/resource/876r-jsdb.json?"
+            + "$where=" + urllib.parse.quote(viol_where)
+            + "&$select=" + urllib.parse.quote(viol_select)
+            + "&$limit=100000"
+        )
+        with urllib.request.urlopen(viol_url, timeout=30) as resp:
+            viol_rows = json.loads(resp.read().decode("utf-8"))
+
+        viol_counts = {}
+        for row in viol_rows:
+            dot = str(row.get("dotnum", "")).strip()
+            if dot:
+                viol_counts[dot] = viol_counts.get(dot, 0) + 1
+
+        added = 0
+        for dot, count in viol_counts.items():
+            if count >= 3:
+                if dot not in dots:
+                    dots[dot] = {
+                        "dot_number": dot,
+                        "carrier_name": "",
+                        "city": "",
+                        "state": "",
+                        "latest_inspection_date": "",
+                        "latest_inspection_ts": "1970-01-01",
+                        "signals": [],
+                        "oos_count": 0,
+                        "violation_count": count,
+                        "violation_date": "",
+                        "violation_location": "",
+                        "violation_type": "",
+                    }
+                    added += 1
+                if "violation_history" not in dots[dot]["signals"]:
+                    dots[dot]["signals"].append("violation_history")
+                dots[dot]["violation_count"] = count
+
+        print(f"Phase 1b: {len(viol_rows)} violation rows → {added} new DOTs added, violation_history tagged")
+    except Exception as e:
+        print(f"Phase 1b WARNING: violations pull failed: {e}")
+
+    # Sort by recency, take top batch_size
+    sorted_dots = sorted(dots.values(), key=lambda x: x["latest_inspection_ts"], reverse=True)
+    result = sorted_dots[:batch_size]
+    print(f"Phase 1 complete: {len(dots)} total unique DOTs, returning top {len(result)} by recency")
+    return result
+
+
+# ── Phase 2: Cross-Run Deduplication ─────────────────────────────────────────
+def filter_seen_dots(carriers):
+    """Skip DOTs processed in last 90 days."""
+    cutoff = datetime.now() - timedelta(days=90)
+
+    processed = {}
+    if os.path.exists(PROCESSED_DOTS_FILE):
+        with open(PROCESSED_DOTS_FILE) as f:
+            try:
+                processed = json.load(f)
+            except json.JSONDecodeError:
+                processed = {}
+
+    fresh, skipped = [], 0
+    for c in carriers:
+        dot = c["dot_number"]
+        if dot in processed:
+            try:
+                pd = datetime.fromisoformat(processed[dot].get("processed_date", "1970-01-01"))
+                if pd > cutoff:
+                    skipped += 1
+                    continue
+            except Exception:
+                pass
+        fresh.append(c)
+
+    print(f"Phase 2: {skipped} DOTs skipped (seen ≤90 days), {len(fresh)} fresh")
+    return fresh
