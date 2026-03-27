@@ -1,0 +1,12 @@
+{
+  "run": "AM",
+  "timestamp": "2026-03-26T17:44:28.279221",
+  "total_enriched": 1,
+  "carriers": [],
+  "signal_breakdown": {
+    "safety_rating": 0,
+    "oos": 0,
+    "violation_history": 0,
+    "csa": 0
+  }
+}

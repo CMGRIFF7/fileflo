@@ -343,3 +343,142 @@ def enrich_csa(carriers):
     csa_count = sum(1 for c in carriers if "csa" in c["signals"])
     print(f"Phase 3b complete: {csa_count}/{len(carriers)} carriers with CSA above threshold")
     return carriers
+
+
+# ── Phase 4: Lead Scoring ─────────────────────────────────────────────────────
+def _days_since_date(date_str):
+    """Return days since a 'Month DD, YYYY' date string. Returns 999 on parse failure."""
+    try:
+        d = datetime.strptime(date_str, "%B %d, %Y")
+        return (datetime.now() - d).days
+    except Exception:
+        return 999
+
+
+def score_carriers(carriers):
+    """Apply scoring rubric. Sort highest score first."""
+    for c in carriers:
+        score = 0
+        if c.get("safety_rating") == "Unsatisfactory":
+            score += 5
+        if "oos" in c["signals"] and _days_since_date(c.get("violation_date", "")) <= 7:
+            score += 4
+        if c.get("safety_rating") == "Conditional":
+            score += 3
+        if "violation_history" in c["signals"]:
+            score += 2
+        if "csa" in c["signals"]:
+            score += min(c.get("csa_basics_above", 0), 4)
+        units = c.get("power_units", 0)
+        if units >= 10:
+            score += 2
+        elif units >= 2:
+            score += 1
+        c["lead_score"] = score
+
+    carriers.sort(key=lambda x: x["lead_score"], reverse=True)
+    top = carriers[0]["lead_score"] if carriers else 0
+    print(f"Phase 4 complete: {len(carriers)} carriers scored. Top score: {top}")
+    return carriers
+
+
+# ── Campaign Assignment ───────────────────────────────────────────────────────
+def assign_campaign(carrier):
+    """Return (campaign_id, signal_name) based on highest-priority signal present."""
+    for signal in PRIORITY_ORDER:
+        if signal in carrier.get("signals", []):
+            return CAMPAIGN_IDS[signal], signal
+    return None, None
+
+
+# ── Processed-DOTs Update ────────────────────────────────────────────────────
+def mark_dots_processed(carriers, run_label):
+    """Write all enriched DOTs to processed-dots.json with today's date."""
+    processed = {}
+    if os.path.exists(PROCESSED_DOTS_FILE):
+        with open(PROCESSED_DOTS_FILE) as f:
+            try:
+                processed = json.load(f)
+            except json.JSONDecodeError:
+                processed = {}
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    for c in carriers:
+        processed[c["dot_number"]] = {
+            "processed_date": today,
+            "run": run_label,
+            "lead_score": c.get("lead_score", 0),
+            "campaign_id": c.get("campaign_id"),
+            "signal_used": c.get("signal_used"),
+            "contact_found": False,  # SKILL.md updates this to True after upload
+        }
+
+    with open(PROCESSED_DOTS_FILE, "w") as f:
+        json.dump(processed, f, indent=2)
+    print(f"Marked {len(carriers)} DOTs as processed in processed-dots.json")
+
+
+# ── Entry Point ───────────────────────────────────────────────────────────────
+def main():
+    parser = argparse.ArgumentParser(description="FMCSA Signal Hub Pipeline")
+    parser.add_argument("--batch-size", type=int, default=1000,
+                        help="Max carriers to process per run (default: 1000)")
+    parser.add_argument("--run", choices=["AM", "PM"], default="AM",
+                        help="Run label for logging (default: AM)")
+    args = parser.parse_args()
+
+    print(f"\n{'='*60}")
+    print(f"FMCSA Signal Hub -- {args.run} Run")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Batch size: {args.batch_size}")
+    print(f"{'='*60}\n")
+
+    carriers = collect_signals(args.batch_size)
+    carriers = filter_seen_dots(carriers)
+
+    if not carriers:
+        print("No fresh carriers to process. Exiting.")
+        # Write empty output so SKILL.md doesn't error
+        with open(OUTPUT_FILE, "w") as f:
+            json.dump({"run": args.run, "timestamp": datetime.now().isoformat(),
+                       "total_enriched": 0, "carriers": []}, f)
+        return
+
+    carriers = enrich_qcmobile(carriers)
+    carriers = enrich_csa(carriers)
+    carriers = score_carriers(carriers)
+
+    # Assign campaign to each carrier
+    for c in carriers:
+        campaign_id, signal_used = assign_campaign(c)
+        c["campaign_id"] = campaign_id
+        c["signal_used"] = signal_used
+
+    uploadable = [c for c in carriers if c["campaign_id"]]
+
+    # Mark all processed DOTs NOW so PM run skips them
+    mark_dots_processed(carriers, args.run)
+
+    # Write output for SKILL.md to read
+    output = {
+        "run": args.run,
+        "timestamp": datetime.now().isoformat(),
+        "total_enriched": len(carriers),
+        "carriers": uploadable,
+        "signal_breakdown": {
+            signal: sum(1 for c in uploadable if c.get("signal_used") == signal)
+            for signal in PRIORITY_ORDER
+        },
+    }
+    with open(OUTPUT_FILE, "w") as f:
+        json.dump(output, f, indent=2)
+
+    print(f"\n{'='*60}")
+    print(f"Output: {len(uploadable)} carriers ready for contact-finding")
+    print(f"Signal breakdown: {output['signal_breakdown']}")
+    print(f"Saved to: {OUTPUT_FILE}")
+    print(f"{'='*60}\n")
+
+
+if __name__ == "__main__":
+    main()
