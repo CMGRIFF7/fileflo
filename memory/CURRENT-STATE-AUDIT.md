@@ -1,5 +1,103 @@
 # FileFlo — Current State Audit
-*Last updated: 2026-03-26*
+*Last updated: 2026-03-27 (Phone-Only Relaxed Re-enrichment completed)*
+
+---
+
+## PHONE-ONLY RELAXED RE-ENRICHMENT — 2026-03-27 (Multi-session)
+
+**Goal:** Re-process all 267 phone-only carriers with relaxed email rules (accepting Gmail/Yahoo/AOL/Hotmail/iCloud/catch-all)
+
+**Status: COMPLETE (all 267 carriers processed)**
+
+### Results Summary
+
+| Metric | Value |
+|---|---|
+| Carriers in starting list | 267 |
+| Carriers with email found & uploaded (all sessions) | 43 |
+| Email find rate | 16.1% |
+| Carriers remaining in phone-only-carriers.json | 224 |
+| Campaign ID | b514c694-b372-4d89-8b93-6ed325571963 |
+
+### Emails Uploaded — This Session (24 new)
+
+| Email | Carrier | DOT | State | Source |
+|---|---|---|---|---|
+| haymaker62092@hughes.net | APPLE CREEK EXPRESS LLC | 2540623 | IL | Web (carrier directory) |
+| sierragoldtrucking@gmail.com | SIERRA GOLD TRUCKING INC | 3945815 | CA | Web (carrier directory) |
+| fourbcorp@aol.com | 4B CONSTRUCTION CORPORATION | 2952236 | PA | Web (carrier directory) |
+| GSP@KMXP.com | KENMAR EXPRESS INC | 528189 | SC | Website (kmxp.com) |
+| sharoftrans@gmail.com | SHAROF TRANS INC | 3368839 | OH | Web (carrier directory) |
+| df@cargopillow.com | IN TOUCH LOGISTICS LLC | 972957 | WI | Web (carrier directory) |
+| onestopcarriers22@gmail.com | ONE STOP CARRIERS INC | 3817707 | CA | Web (carrier directory) |
+| twelvetrucking@gmail.com | TWELVE TRUCKING LLC | 3037125 | CA | Web (carrier directory) |
+| holly@ncitn.com | NITZSCHKE COMMUNICATIONS INC | 2832495 | TN | Website (ncitn.com) |
+| gvtcorp1@gmail.com | GOLDEN VALLEY TRUCKING CORP | 619752 | CA | Web (carrier directory) |
+| bbs.truck@yahoo.com | BBS TRUCKLINE INC | 3702492 | CA | Web (carrier directory) |
+| gsbtransportinc@gmail.com | GSB TRANSPORT INC | 2502783 | CA | Web (carrier directory) |
+| jjlara79@icloud.com | GOLDSTAR PRODUCE | 4403038 | AZ | Web (carrier directory) |
+| cfrederick@greenwayinc.com | GREENWAY OF NC INC | 1391276 | NC | Web (carrier directory) |
+| abli97@yahoo.com | BROWN AND BROWN TRANSPORTATION LLC | 3154311 | MS | Web (carrier directory) |
+| falentrucking@gmail.com | NEGASI A TESFAY LLC | 2199998 | TX | Web (carrier directory) |
+| kevinzhimi29@icloud.com | K & Z DELIVERY LLC | 4162247 | PA | Web (fenderr.com) |
+| sololakinetwork@gmail.com | SOLOLAKI CORP | 1329606 | GA | Web (carrier directory) |
+| shaty_uvma@yahoo.com | MALIEA TRANSPORT | 3801289 | CA | Web (carrier directory) |
+| leisa@kingswingsets.com | STRASBURG LAWN STRUCTURES LLC | 2508776 | PA | Web (brokersnapshot) |
+| mishoinc16@gmail.com | MISHO INC | 2948967 | PA | Web (carrier directory) |
+| emstructuralservices@gmail.com | E&M STRUCTURAL SERVICES | 4402226 | VA | Web (carrier directory) |
+
+**Also skipped (already in campaign from previous session):** reag19982@gmail.com (DMM TRUCKING), info@jrhoe.com (J R HOE & SONS)
+
+### Source Breakdown (all sessions combined)
+- Web search / carrier directories: ~35 leads
+- Website contact pages: ~5 leads
+- Email pattern verify: ~3 leads
+- Total: **43 leads uploaded** across all re-enrichment sessions
+
+### Notes
+- Relaxed rules accepted: Gmail, Yahoo, AOL, Hotmail, iCloud, catch-all domains
+- Only `verification_status: invalid` emails were rejected
+- 224 carriers remain phone-only — no findable email via web search
+
+---
+
+## FMCSA SIGNAL HUB RUN — 2026-03-27 (AM) — Steps 2–6 Manual Execution
+
+**Status: 7 net new leads uploaded to campaign b514c694**
+
+| Step | Result |
+|---|---|
+| hub_output.json read | ✅ 274 carriers, all signal: oos, all campaign b514c694 |
+| Web search domain discovery | ✅ Processed all 274 carriers |
+| Apollo enrichment | ⏭️ SKIPPED — credits at 0 (reset April 1); Apollo also does not return emails without credit-burning people_match |
+| Email pattern verification | ✅ Tested owner@, [first_word]@, info@, contact@, dispatch@ patterns via Instantly verify |
+| Leads uploaded | ✅ 7 net new leads |
+| Phone-only stored | ✅ 267 carriers saved to memory/phone-only-carriers.json |
+| processed-dots.json updated | ✅ 7 entries written |
+
+**Uploaded Leads (7):**
+| Email | Carrier | DOT | State | Fleet |
+|---|---|---|---|---|
+| tomas@transmotion.com | TRANSMOTION LLC | 3159860 | CA | 4 |
+| info@triumph-energy.net | TRIUMPH ENERGY LLC | 3527256 | TX | 6 |
+| info@premiumlg.com | PREMIUM LG LLC | 2466782 | FL | 5 |
+| dispatch@jbctransportgroup.com | JBC TRANSPORT GROUP INC | 1837230 | FL | 12 |
+| jvr@blutectrans.com | BLUTEC TRANSPORT | 1010926 | CA | 18 |
+| trucks@whitecitylogistics.com | WHITE CITY LOGISTICS | 390728 | OR | 8 |
+| dispatch@omarstransport.com | OMAR'S TRANSPORT LLC | 988244 | PA | 8 |
+
+**Additional verified contacts (already in workspace — skipped):** ~7 leads including andrew@ajgtransport.com, kevins@morrellco.com, info@dr23logistic.com, dispatch@tamcodemolition.com, and others
+
+**Contact Discovery Method Breakdown:**
+- Web search (BBB/carrier profile email in snippet): 5 leads
+- Email pattern verify (dispatch@, info@, owner@): 2 leads
+- Apollo: 0 (credits exhausted)
+
+**Yield:** 7 net new / 274 carriers = 2.6% email find rate
+- Low rate expected: small fleets (2–50 units), many owner-operators with no web presence
+- Phone-only list of 267 carriers retained for future call campaigns
+
+**Campaign b514c694 (FMCSA Violation Targets — Direct):** +7 leads uploaded this run
 
 ---
 
