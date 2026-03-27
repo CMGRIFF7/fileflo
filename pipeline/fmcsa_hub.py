@@ -45,14 +45,15 @@ CSA_THRESHOLDS = {
 
 # ── Phase 1: Signal Collection ────────────────────────────────────────────────
 def collect_signals(batch_size=1000):
-    """Pull Socrata inspections + violations. Return merged DOT list sorted by recency."""
+    """Pull Socrata inspections (30 days for OOS, 12 months for violation history).
+    Return merged DOT list sorted by recency."""
     now = datetime.now(timezone.utc)
     cutoff_30  = (now - timedelta(days=30)).strftime("%Y%m%d")
     cutoff_365 = (now - timedelta(days=365)).strftime("%Y%m%d")
 
-    # ── Inspections (last 30 days, all interstate) ──
+    # ── Recent inspections (last 30 days) for OOS signal ──
     insp_where  = f"insp_date > '{cutoff_30}' AND insp_interstate = 'Y'"
-    insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total"
+    insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total,viol_total"
     insp_url = (
         "https://data.transportation.gov/resource/fx4q-ay7w.json?"
         + "$where=" + urllib.parse.quote(insp_where)
@@ -94,7 +95,6 @@ def collect_signals(batch_size=1000):
                 "violation_type": "",
             }
         else:
-            # keep most recent
             if ts > dots[dot]["latest_inspection_ts"]:
                 dots[dot]["latest_inspection_ts"] = ts
                 dots[dot]["latest_inspection_date"] = readable
@@ -106,28 +106,31 @@ def collect_signals(batch_size=1000):
             dots[dot]["violation_location"] = row.get("insp_carrier_state", "")
             dots[dot]["violation_type"] = "out-of-service"
 
-    print(f"Phase 1a: {len(insp_rows)} inspection rows → {len(dots)} unique DOTs")
+    print(f"Phase 1a: {len(insp_rows)} inspection rows -> {len(dots)} unique DOTs")
 
-    # ── Violations (last 12 months, 3+ per carrier) ──
+    # ── 12-month inspections for violation_history signal ──
     try:
-        viol_where  = f"inspdate > '{cutoff_365}'"
-        viol_select = "dotnum,inspdate"
-        viol_url = (
-            "https://data.transportation.gov/resource/876r-jsdb.json?"
-            + "$where=" + urllib.parse.quote(viol_where)
-            + "&$select=" + urllib.parse.quote(viol_select)
+        hist_where  = f"insp_date > '{cutoff_365}' AND insp_interstate = 'Y'"
+        hist_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,viol_total"
+        hist_url = (
+            "https://data.transportation.gov/resource/fx4q-ay7w.json?"
+            + "$where=" + urllib.parse.quote(hist_where)
+            + "&$select=" + urllib.parse.quote(hist_select)
             + "&$limit=100000"
         )
-        with urllib.request.urlopen(viol_url, timeout=30) as resp:
-            viol_rows = json.loads(resp.read().decode("utf-8"))
+        with urllib.request.urlopen(hist_url, timeout=30) as resp:
+            hist_rows = json.loads(resp.read().decode("utf-8"))
 
+        # Count cumulative violations per DOT over 12 months
         viol_counts = {}
-        for row in viol_rows:
-            dot = str(row.get("dotnum", "")).strip()
+        for row in hist_rows:
+            dot = row.get("dot_number", "").strip()
             if dot:
-                viol_counts[dot] = viol_counts.get(dot, 0) + 1
+                v = int(row.get("viol_total") or 0)
+                viol_counts[dot] = viol_counts.get(dot, 0) + v
 
         added = 0
+        tagged = 0
         for dot, count in viol_counts.items():
             if count >= 3:
                 if dot not in dots:
@@ -148,13 +151,13 @@ def collect_signals(batch_size=1000):
                     added += 1
                 if "violation_history" not in dots[dot]["signals"]:
                     dots[dot]["signals"].append("violation_history")
+                    tagged += 1
                 dots[dot]["violation_count"] = count
 
-        print(f"Phase 1b: {len(viol_rows)} violation rows → {added} new DOTs added, violation_history tagged")
+        print(f"Phase 1b: {len(hist_rows)} 12-month inspection rows -> {added} new DOTs, {tagged} violation_history tagged")
     except Exception as e:
-        print(f"Phase 1b WARNING: violations pull failed: {e}")
+        print(f"Phase 1b WARNING: 12-month pull failed: {e}")
 
-    # Sort by recency, take top batch_size
     sorted_dots = sorted(dots.values(), key=lambda x: x["latest_inspection_ts"], reverse=True)
     result = sorted_dots[:batch_size]
     print(f"Phase 1 complete: {len(dots)} total unique DOTs, returning top {len(result)} by recency")
@@ -187,5 +190,5 @@ def filter_seen_dots(carriers):
                 pass
         fresh.append(c)
 
-    print(f"Phase 2: {skipped} DOTs skipped (seen ≤90 days), {len(fresh)} fresh")
+    print(f"Phase 2: {skipped} DOTs skipped (seen <=90 days), {len(fresh)} fresh")
     return fresh
