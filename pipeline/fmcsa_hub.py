@@ -47,72 +47,111 @@ CSA_THRESHOLDS = {
 }
 
 # ── Phase 1: Signal Collection ────────────────────────────────────────────────
-def collect_signals(batch_size=1000, offset=0):
-    """Pull Socrata inspections (30 days for OOS, 12 months for violation history).
-    Return merged DOT list sorted by recency, sliced by offset+batch_size."""
+FRESH_DAYS   = 3    # violations within this window are always "fresh tier"
+FRESH_SIZE   = 500  # how many fresh carriers to pull per run
+BACKLOG_SIZE = 500  # how many backlog carriers to pull per run
+
+def collect_signals(backlog_offset=0):
+    """Pull Socrata inspections. Returns up to FRESH_SIZE + BACKLOG_SIZE carriers.
+
+    Fresh tier  — last FRESH_DAYS days, always pulled from position 0 so new
+                  violations are touched within 24 hrs regardless of backlog offset.
+    Backlog tier — days FRESH_DAYS+1 through 30, sliced by backlog_offset so we
+                  walk through older carriers without repeating.
+
+    Dedup (Phase 2) handles any overlap between runs.
+    """
     now = datetime.now(timezone.utc)
-    cutoff_30  = (now - timedelta(days=30)).strftime("%Y%m%d")
-    cutoff_365 = (now - timedelta(days=365)).strftime("%Y%m%d")
+    cutoff_30    = (now - timedelta(days=30)).strftime("%Y%m%d")
+    cutoff_fresh = (now - timedelta(days=FRESH_DAYS)).strftime("%Y%m%d")
+    cutoff_365   = (now - timedelta(days=365)).strftime("%Y%m%d")
 
-    # ── Recent inspections (last 30 days) for OOS signal ──
-    insp_where  = f"insp_date > '{cutoff_30}' AND oos_total > '0' AND insp_interstate = 'Y'"
-    insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total"
-    insp_url = (
-        "https://data.transportation.gov/resource/fx4q-ay7w.json?"
-        + "$where=" + urllib.parse.quote(insp_where)
-        + "&$select=" + urllib.parse.quote(insp_select)
-        + "&$order=" + urllib.parse.quote("insp_date DESC")
-        + "&$limit=50000"
-    )
-    with urllib.request.urlopen(insp_url, timeout=30) as resp:
-        insp_rows = json.loads(resp.read().decode("utf-8"))
+    def _fetch_oos_rows(where_clause):
+        insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total"
+        url = (
+            "https://data.transportation.gov/resource/fx4q-ay7w.json?"
+            + "$where=" + urllib.parse.quote(where_clause)
+            + "&$select=" + urllib.parse.quote(insp_select)
+            + "&$order=" + urllib.parse.quote("insp_date DESC")
+            + "&$limit=50000"
+        )
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
 
-    dots = {}
-    for row in insp_rows:
-        dot = row.get("dot_number", "").strip()
-        if not dot:
-            continue
-        raw = str(row.get("insp_date", ""))[:8]
-        try:
-            readable = datetime.strptime(raw, "%Y%m%d").strftime("%B %d, %Y")
-            ts       = datetime.strptime(raw, "%Y%m%d").isoformat()
-        except Exception:
-            readable = raw
-            ts = "1970-01-01"
+    def _rows_to_dots(rows):
+        dots = {}
+        for row in rows:
+            dot = row.get("dot_number", "").strip()
+            if not dot:
+                continue
+            raw = str(row.get("insp_date", ""))[:8]
+            try:
+                readable = datetime.strptime(raw, "%Y%m%d").strftime("%B %d, %Y")
+                ts       = datetime.strptime(raw, "%Y%m%d").isoformat()
+            except Exception:
+                readable = raw
+                ts = "1970-01-01"
+            oos = int(row.get("oos_total") or 0)
+            if dot not in dots:
+                dots[dot] = {
+                    "dot_number": dot,
+                    "carrier_name": row.get("insp_carrier_name", ""),
+                    "city": row.get("insp_carrier_city", ""),
+                    "state": row.get("insp_carrier_state", ""),
+                    "latest_inspection_date": readable,
+                    "latest_inspection_ts": ts,
+                    "signals": [],
+                    "oos_count": 0,
+                    "violation_count": 0,
+                    "violation_date": "",
+                    "violation_location": "",
+                    "violation_type": "",
+                }
+            else:
+                if ts > dots[dot]["latest_inspection_ts"]:
+                    dots[dot]["latest_inspection_ts"] = ts
+                    dots[dot]["latest_inspection_date"] = readable
+            if oos > 0:
+                dots[dot]["oos_count"] += oos
+                if "oos" not in dots[dot]["signals"]:
+                    dots[dot]["signals"].append("oos")
+                    if not dots[dot]["violation_date"]:
+                        dots[dot]["violation_date"] = readable
+                        dots[dot]["violation_location"] = row.get("insp_carrier_state", "")
+                        dots[dot]["violation_type"] = "out-of-service"
+        return dots
 
-        oos = int(row.get("oos_total") or 0)
+    # ── Fresh tier: last FRESH_DAYS days ──────────────────────────────────────
+    fresh_where = f"insp_date > '{cutoff_fresh}' AND oos_total > '0' AND insp_interstate = 'Y'"
+    fresh_rows  = _fetch_oos_rows(fresh_where)
+    fresh_dots  = _rows_to_dots(fresh_rows)
+    fresh_sorted = sorted(fresh_dots.values(), key=lambda x: x["latest_inspection_ts"], reverse=True)
+    fresh_slice  = fresh_sorted[:FRESH_SIZE]
+    print(f"Phase 1a (fresh ≤{FRESH_DAYS}d): {len(fresh_rows)} rows -> {len(fresh_dots)} DOTs -> {len(fresh_slice)} selected")
 
-        if dot not in dots:
-            dots[dot] = {
-                "dot_number": dot,
-                "carrier_name": row.get("insp_carrier_name", ""),
-                "city": row.get("insp_carrier_city", ""),
-                "state": row.get("insp_carrier_state", ""),
-                "latest_inspection_date": readable,
-                "latest_inspection_ts": ts,
-                "signals": [],
-                "oos_count": 0,
-                "violation_count": 0,
-                "violation_date": "",
-                "violation_location": "",
-                "violation_type": "",
-            }
-        else:
-            if ts > dots[dot]["latest_inspection_ts"]:
-                dots[dot]["latest_inspection_ts"] = ts
-                dots[dot]["latest_inspection_date"] = readable
+    # ── Backlog tier: days FRESH_DAYS+1 through 30 ────────────────────────────
+    backlog_where = (f"insp_date > '{cutoff_30}' AND insp_date <= '{cutoff_fresh}'"
+                     f" AND oos_total > '0' AND insp_interstate = 'Y'")
+    backlog_rows  = _fetch_oos_rows(backlog_where)
+    backlog_dots  = _rows_to_dots(backlog_rows)
+    # Remove any DOTs already in fresh tier
+    for dot in fresh_dots:
+        backlog_dots.pop(dot, None)
+    backlog_sorted = sorted(backlog_dots.values(), key=lambda x: x["latest_inspection_ts"], reverse=True)
+    backlog_slice  = backlog_sorted[backlog_offset:backlog_offset + BACKLOG_SIZE]
+    print(f"Phase 1a (backlog {FRESH_DAYS+1}-30d): {len(backlog_rows)} rows -> {len(backlog_dots)} DOTs "
+          f"-> {len(backlog_slice)} selected (offset {backlog_offset})")
 
-        if oos > 0:
-            dots[dot]["oos_count"] += oos
-            if "oos" not in dots[dot]["signals"]:
-                dots[dot]["signals"].append("oos")
-                # violation_date and location from the most recent OOS inspection (rows sorted DESC)
-                if not dots[dot]["violation_date"]:
-                    dots[dot]["violation_date"] = readable
-                    dots[dot]["violation_location"] = row.get("insp_carrier_state", "")
-                    dots[dot]["violation_type"] = "out-of-service"
+    # ── Merge: fresh first, then backlog ─────────────────────────────────────
+    seen = set()
+    merged = []
+    for c in fresh_slice + backlog_slice:
+        if c["dot_number"] not in seen:
+            seen.add(c["dot_number"])
+            merged.append(c)
 
-    print(f"Phase 1a: {len(insp_rows)} inspection rows -> {len(dots)} unique DOTs")
+    dots = {c["dot_number"]: c for c in merged}
+    print(f"Phase 1a total: {len(merged)} unique DOTs after merge")
 
     # ── 12-month inspections for violation_history signal ──
     try:
@@ -164,10 +203,8 @@ def collect_signals(batch_size=1000, offset=0):
     except Exception as e:
         print(f"Phase 1b WARNING: 12-month pull failed: {e}")
 
-    sorted_dots = sorted(dots.values(), key=lambda x: x["latest_inspection_ts"], reverse=True)
-    result = sorted_dots[offset:offset + batch_size]
-    print(f"Phase 1 complete: {len(dots)} total unique DOTs, returning {len(result)} (offset {offset}, limit {batch_size})")
-    return result
+    print(f"Phase 1 complete: {len(merged)} carriers ({len(fresh_slice)} fresh + {len(backlog_slice)} backlog)")
+    return merged
 
 
 # ── Phase 2: Cross-Run Deduplication ─────────────────────────────────────────
@@ -422,19 +459,18 @@ def mark_dots_processed(carriers, run_label):
 
 
 # ── Auto Offset ──────────────────────────────────────────────────────────────
-def resolve_offset(run_label):
+def resolve_backlog_offset(run_label):
     """
-    Manage a persistent daily offset so AM/PM runs walk the full DOT pool
-    without repeating slices.
+    Manage a persistent backlog offset. Only the backlog tier advances —
+    the fresh tier always starts from position 0.
 
-    Logic:
-      - AM run: if last_date != today, advance base_offset by 2000 (yesterday's
-        two runs are done). Reset to 0 when we've passed POOL_SIZE.
-        Save updated state. Return base_offset.
-      - PM run: read current base_offset (already advanced by AM). Return
-        base_offset + 1000. Do NOT advance state (AM owns that).
+    - AM run: if last_date != today, advance backlog_offset by 2 * BACKLOG_SIZE
+      (covers yesterday's AM + PM backlog slices). Reset at POOL_SIZE.
+      Returns backlog_offset (start of today's AM backlog window).
+    - PM run: returns backlog_offset + BACKLOG_SIZE (PM picks up where AM left off).
+      Does NOT advance state — AM owns the advance.
     """
-    state = {"base_offset": 0, "last_date": ""}
+    state = {"backlog_offset": 0, "last_date": ""}
     if os.path.exists(OFFSET_STATE_FILE):
         with open(OFFSET_STATE_FILE) as f:
             try:
@@ -446,47 +482,45 @@ def resolve_offset(run_label):
 
     if run_label == "AM":
         if state.get("last_date") != today:
-            new_base = state["base_offset"] + 2000
-            if new_base >= POOL_SIZE:
-                new_base = 0
-                print(f"Auto-offset: full pool walked ({POOL_SIZE} DOTs). Resetting to 0.")
-            state["base_offset"] = new_base
+            new_offset = state["backlog_offset"] + 2 * BACKLOG_SIZE
+            if new_offset >= POOL_SIZE:
+                new_offset = 0
+                print(f"Backlog offset: full pool walked ({POOL_SIZE} DOTs). Resetting to 0.")
+            state["backlog_offset"] = new_offset
             state["last_date"] = today
             with open(OFFSET_STATE_FILE, "w") as f:
                 json.dump(state, f, indent=2)
-            print(f"Auto-offset: advanced to base {new_base} (AM, new day)")
+            print(f"Backlog offset: advanced to {new_offset} (AM, new day)")
         else:
-            print(f"Auto-offset: base {state['base_offset']} (AM, same day re-run)")
-        return state["base_offset"]
+            print(f"Backlog offset: {state['backlog_offset']} (AM, same-day re-run)")
+        return state["backlog_offset"]
     else:  # PM
-        offset = state["base_offset"] + 1000
-        print(f"Auto-offset: using {offset} (PM = base {state['base_offset']} + 1000)")
-        return offset
+        pm_offset = state["backlog_offset"] + BACKLOG_SIZE
+        print(f"Backlog offset: {pm_offset} (PM = {state['backlog_offset']} + {BACKLOG_SIZE})")
+        return pm_offset
 
 
 # ── Entry Point ───────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="FMCSA Signal Hub Pipeline")
-    parser.add_argument("--batch-size", type=int, default=1000,
-                        help="Max carriers to process per run (default: 1000)")
-    parser.add_argument("--offset", default="auto",
-                        help="Slice offset: integer or 'auto' (default: auto — reads offset_state.json)")
+    parser.add_argument("--backlog-offset", default="auto",
+                        help="Backlog slice offset: integer or 'auto' (default: auto — reads offset_state.json)")
     parser.add_argument("--run", choices=["AM", "PM"], default="AM",
                         help="Run label for logging (default: AM)")
     args = parser.parse_args()
 
-    if args.offset == "auto":
-        offset = resolve_offset(args.run)
+    if args.backlog_offset == "auto":
+        backlog_offset = resolve_backlog_offset(args.run)
     else:
-        offset = int(args.offset)
+        backlog_offset = int(args.backlog_offset)
 
     print(f"\n{'='*60}")
     print(f"FMCSA Signal Hub -- {args.run} Run")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Batch size: {args.batch_size} | Offset: {offset}")
+    print(f"Fresh tier: top {FRESH_SIZE} (last {FRESH_DAYS} days) | Backlog tier: {BACKLOG_SIZE} @ offset {backlog_offset}")
     print(f"{'='*60}\n")
 
-    carriers = collect_signals(args.batch_size, offset)
+    carriers = collect_signals(backlog_offset)
     carriers = filter_seen_dots(carriers)
 
     if not carriers:
