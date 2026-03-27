@@ -23,6 +23,9 @@ PHONE_ONLY_FILE = os.path.join(MEMORY_DIR, "phone-only-carriers.json")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, "hub_output.json")
+OFFSET_STATE_FILE = os.path.join(MEMORY_DIR, "offset_state.json")
+
+POOL_SIZE = 35000  # Reset offset when we've walked the full list
 
 CAMPAIGN_IDS = {
     "safety_rating": "a4f77f6e-3033-4db0-8b1e-f128b5bfbdd6",
@@ -44,9 +47,9 @@ CSA_THRESHOLDS = {
 }
 
 # ── Phase 1: Signal Collection ────────────────────────────────────────────────
-def collect_signals(batch_size=1000):
+def collect_signals(batch_size=1000, offset=0):
     """Pull Socrata inspections (30 days for OOS, 12 months for violation history).
-    Return merged DOT list sorted by recency."""
+    Return merged DOT list sorted by recency, sliced by offset+batch_size."""
     now = datetime.now(timezone.utc)
     cutoff_30  = (now - timedelta(days=30)).strftime("%Y%m%d")
     cutoff_365 = (now - timedelta(days=365)).strftime("%Y%m%d")
@@ -162,8 +165,8 @@ def collect_signals(batch_size=1000):
         print(f"Phase 1b WARNING: 12-month pull failed: {e}")
 
     sorted_dots = sorted(dots.values(), key=lambda x: x["latest_inspection_ts"], reverse=True)
-    result = sorted_dots[:batch_size]
-    print(f"Phase 1 complete: {len(dots)} total unique DOTs, returning top {len(result)} by recency")
+    result = sorted_dots[offset:offset + batch_size]
+    print(f"Phase 1 complete: {len(dots)} total unique DOTs, returning {len(result)} (offset {offset}, limit {batch_size})")
     return result
 
 
@@ -418,22 +421,72 @@ def mark_dots_processed(carriers, run_label):
     print(f"Marked {len(carriers)} DOTs as processed in processed-dots.json")
 
 
+# ── Auto Offset ──────────────────────────────────────────────────────────────
+def resolve_offset(run_label):
+    """
+    Manage a persistent daily offset so AM/PM runs walk the full DOT pool
+    without repeating slices.
+
+    Logic:
+      - AM run: if last_date != today, advance base_offset by 2000 (yesterday's
+        two runs are done). Reset to 0 when we've passed POOL_SIZE.
+        Save updated state. Return base_offset.
+      - PM run: read current base_offset (already advanced by AM). Return
+        base_offset + 1000. Do NOT advance state (AM owns that).
+    """
+    state = {"base_offset": 0, "last_date": ""}
+    if os.path.exists(OFFSET_STATE_FILE):
+        with open(OFFSET_STATE_FILE) as f:
+            try:
+                state = json.load(f)
+            except json.JSONDecodeError:
+                pass
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    if run_label == "AM":
+        if state.get("last_date") != today:
+            new_base = state["base_offset"] + 2000
+            if new_base >= POOL_SIZE:
+                new_base = 0
+                print(f"Auto-offset: full pool walked ({POOL_SIZE} DOTs). Resetting to 0.")
+            state["base_offset"] = new_base
+            state["last_date"] = today
+            with open(OFFSET_STATE_FILE, "w") as f:
+                json.dump(state, f, indent=2)
+            print(f"Auto-offset: advanced to base {new_base} (AM, new day)")
+        else:
+            print(f"Auto-offset: base {state['base_offset']} (AM, same day re-run)")
+        return state["base_offset"]
+    else:  # PM
+        offset = state["base_offset"] + 1000
+        print(f"Auto-offset: using {offset} (PM = base {state['base_offset']} + 1000)")
+        return offset
+
+
 # ── Entry Point ───────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="FMCSA Signal Hub Pipeline")
     parser.add_argument("--batch-size", type=int, default=1000,
                         help="Max carriers to process per run (default: 1000)")
+    parser.add_argument("--offset", default="auto",
+                        help="Slice offset: integer or 'auto' (default: auto — reads offset_state.json)")
     parser.add_argument("--run", choices=["AM", "PM"], default="AM",
                         help="Run label for logging (default: AM)")
     args = parser.parse_args()
 
+    if args.offset == "auto":
+        offset = resolve_offset(args.run)
+    else:
+        offset = int(args.offset)
+
     print(f"\n{'='*60}")
     print(f"FMCSA Signal Hub -- {args.run} Run")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Batch size: {args.batch_size}")
+    print(f"Batch size: {args.batch_size} | Offset: {offset}")
     print(f"{'='*60}\n")
 
-    carriers = collect_signals(args.batch_size)
+    carriers = collect_signals(args.batch_size, offset)
     carriers = filter_seen_dots(carriers)
 
     if not carriers:
