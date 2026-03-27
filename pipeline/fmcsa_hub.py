@@ -198,3 +198,72 @@ def filter_seen_dots(carriers):
 
     print(f"Phase 2: {skipped} DOTs skipped (seen <=90 days), {len(fresh)} fresh")
     return fresh
+
+
+# ── Phase 3a: QCMobile Enrichment ────────────────────────────────────────────
+def enrich_qcmobile(carriers):
+    """
+    Call QCMobile per DOT. Filter fleet 2-50, active, US.
+    Tag safety_rating signal if Conditional or Unsatisfactory.
+    Capture phone number for fallback.
+    """
+    qualified = []
+    for i, c in enumerate(carriers):
+        dot = c["dot_number"]
+        url = f"https://mobile.fmcsa.dot.gov/qc/services/carriers/{dot}?webKey={WEBKEY}"
+        try:
+            with urllib.request.urlopen(url, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            cd = data.get("content", {}).get("carrier", {})
+            if not cd:
+                time.sleep(0.5)
+                continue
+
+            # Fleet size filter
+            try:
+                units = int(cd.get("totalPowerUnits") or 0)
+            except (ValueError, TypeError):
+                units = 0
+            if units < 2 or units > 50:
+                time.sleep(0.5)
+                continue
+
+            # Country filter
+            country = (cd.get("phyCountry") or cd.get("mailingCountry") or "").strip().upper()
+            if country and country not in ("US", "USA", "UNITED STATES", "U.S.", "U.S.A."):
+                time.sleep(0.5)
+                continue
+
+            # State filter
+            state = (cd.get("phyState") or cd.get("mailingState") or c.get("state", "")).strip()
+            if not state:
+                time.sleep(0.5)
+                continue
+
+            safety_rating = (cd.get("safetyRating") or "").strip()
+            phone = (cd.get("telephone") or cd.get("phone") or "").strip()
+            legal_name = (cd.get("legalName") or c.get("carrier_name", "")).strip()
+            city = (cd.get("phyCity") or c.get("city", "")).strip()
+
+            c.update({
+                "legal_name": legal_name,
+                "state": state,
+                "city": city,
+                "power_units": units,
+                "safety_rating": safety_rating,
+                "phone": phone,
+            })
+
+            if safety_rating in ("Conditional", "Unsatisfactory"):
+                if "safety_rating" not in c["signals"]:
+                    c["signals"].append("safety_rating")
+
+            qualified.append(c)
+            if (i + 1) % 50 == 0:
+                print(f"  QCMobile: {i+1}/{len(carriers)} checked, {len(qualified)} qualified so far")
+        except Exception:
+            pass  # Skip on timeout/error
+        time.sleep(0.5)
+
+    print(f"Phase 3a complete: {len(qualified)}/{len(carriers)} qualified (fleet 2-50, active, US)")
+    return qualified
