@@ -52,7 +52,7 @@ def collect_signals(batch_size=1000):
     cutoff_365 = (now - timedelta(days=365)).strftime("%Y%m%d")
 
     # ── Recent inspections (last 30 days) for OOS signal ──
-    insp_where  = f"insp_date > '{cutoff_30}' AND insp_interstate = 'Y'"
+    insp_where  = f"insp_date > '{cutoff_30}' AND oos_total > '0' AND insp_interstate = 'Y'"
     insp_select = "dot_number,insp_date,insp_carrier_name,insp_carrier_city,insp_carrier_state,oos_total"
     insp_url = (
         "https://data.transportation.gov/resource/fx4q-ay7w.json?"
