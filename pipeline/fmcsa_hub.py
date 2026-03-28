@@ -240,6 +240,29 @@ def filter_seen_dots(carriers):
     return fresh
 
 
+# ── SAFER Phone Lookup ───────────────────────────────────────────────────────
+def get_safer_phone(dot):
+    """Scrape phone number from FMCSA SAFER carrier snapshot page."""
+    try:
+        url = (f"https://safer.fmcsa.dot.gov/query.asp"
+               f"?query_type=queryCarrierSnapshot&query_param=USDOT&query_string={dot}")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
+        idx = html.find("Phone")
+        if idx > 0:
+            chunk = html[idx:idx + 200]
+            phones = re.findall(r"\(?\d{3}\)?[\s\-\.]\d{3}[\s\-\.]\d{4}", chunk)
+            # Skip FMCSA help-line numbers
+            skip = {"800-832-5660", "800-877-8339"}
+            for p in phones:
+                clean = re.sub(r"[\s\-\.]", "-", p.strip())
+                if clean not in skip:
+                    return clean
+    except Exception:
+        pass
+    return ""
+
+
 # ── Phase 3a: QCMobile Enrichment ────────────────────────────────────────────
 def enrich_qcmobile(carriers):
     """
@@ -284,6 +307,10 @@ def enrich_qcmobile(carriers):
             phone = (cd.get("telephone") or cd.get("phone") or "").strip()
             legal_name = (cd.get("legalName") or c.get("carrier_name", "")).strip()
             city = (cd.get("phyCity") or c.get("city", "")).strip()
+
+            # SAFER phone fallback if QCMobile has no phone
+            if not phone:
+                phone = get_safer_phone(dot)
 
             c.update({
                 "legal_name": legal_name,
