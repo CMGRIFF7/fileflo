@@ -28,13 +28,15 @@ OFFSET_STATE_FILE = os.path.join(MEMORY_DIR, "offset_state.json")
 POOL_SIZE = 35000  # Reset offset when we've walked the full list
 
 CAMPAIGN_IDS = {
-    "safety_rating": "a4f77f6e-3033-4db0-8b1e-f128b5bfbdd6",
-    "oos":           "b514c694-b372-4d89-8b93-6ed325571963",
-    "violation_history": "8f41f5d5-a3f8-41f2-9143-b01bfa5bdc8b",
-    "csa":           "53b6c3d3-e4d6-4067-be6e-87542f1be716",
+    # MayDay V3 campaigns (active, tool CTAs, no tracking)
+    "safety_rating": "ebfaf120-6fef-48b5-b2e2-0bb86f58e390",  # FMCSA Signal Hub -> same campaign
+    "oos":           "ebfaf120-6fef-48b5-b2e2-0bb86f58e390",  # MayDay V3 - FMCSA Signal Hub
+    "violation_history": "ebfaf120-6fef-48b5-b2e2-0bb86f58e390",
+    "csa":           "ebfaf120-6fef-48b5-b2e2-0bb86f58e390",
 }
 
-PRIORITY_ORDER = ["safety_rating", "oos", "violation_history", "csa"]
+# Most-specific signal wins; OOS is the catch-all for carriers with no rarer signal
+PRIORITY_ORDER = ["safety_rating", "csa", "violation_history", "oos"]
 
 CSA_THRESHOLDS = {
     "Unsafe Driving": 65,
@@ -50,6 +52,7 @@ CSA_THRESHOLDS = {
 FRESH_DAYS   = 3    # violations within this window are always "fresh tier"
 FRESH_SIZE   = 500  # how many fresh carriers to pull per run
 BACKLOG_SIZE = 500  # how many backlog carriers to pull per run
+ENRICH_BATCH = 500  # max carriers to send through QCMobile + CSA per run
 
 def collect_signals(backlog_offset=0):
     """Pull Socrata inspections. Returns up to FRESH_SIZE + BACKLOG_SIZE carriers.
@@ -203,8 +206,67 @@ def collect_signals(backlog_offset=0):
     except Exception as e:
         print(f"Phase 1b WARNING: 12-month pull failed: {e}")
 
-    print(f"Phase 1 complete: {len(merged)} carriers ({len(fresh_slice)} fresh + {len(backlog_slice)} backlog)")
-    return merged
+    # ── Phase 1c: Safety Rating signal (Conditional/Unsatisfactory from census) ──
+    try:
+        sr_where = "status_code='A' AND safety_rating IN ('C','U')"
+        sr_select = "dot_number,legal_name,phy_city,phy_state,safety_rating,power_units,email_address,phone"
+        sr_url = (
+            "https://data.transportation.gov/resource/az4n-8mr2.json?"
+            + "$where=" + urllib.parse.quote(sr_where)
+            + "&$select=" + urllib.parse.quote(sr_select)
+            + "&$limit=5000"
+        )
+        with urllib.request.urlopen(sr_url, timeout=60) as resp:
+            sr_rows = json.loads(resp.read().decode("utf-8"))
+
+        added_sr = 0
+        for row in sr_rows:
+            dot = str(row.get("dot_number", "")).strip()
+            if not dot:
+                continue
+            try:
+                units = int(row.get("power_units") or 0)
+            except (ValueError, TypeError):
+                units = 0
+            if units < 5 or units > 200:
+                continue
+            if dot in dots:
+                # Already in pool — just tag signal if missing
+                if "safety_rating" not in dots[dot]["signals"]:
+                    dots[dot]["signals"].append("safety_rating")
+                    raw_sr = row.get("safety_rating", "")
+                    dots[dot]["safety_rating"] = "Conditional" if raw_sr == "C" else "Unsatisfactory"
+                continue
+            raw_sr = row.get("safety_rating", "")
+            sr_label = "Conditional" if raw_sr == "C" else "Unsatisfactory"
+            dots[dot] = {
+                "dot_number": dot,
+                "carrier_name": row.get("legal_name", ""),
+                "city": row.get("phy_city", ""),
+                "state": row.get("phy_state", ""),
+                "latest_inspection_date": "",
+                "latest_inspection_ts": "1970-01-01",
+                "signals": ["safety_rating"],
+                "oos_count": 0,
+                "violation_count": 0,
+                "violation_date": "",
+                "violation_location": row.get("phy_state", ""),
+                "violation_type": "",
+                "safety_rating": sr_label,
+                "census_email": (row.get("email_address") or "").strip(),
+                "phone": (row.get("phone") or "").strip(),
+            }
+            added_sr += 1
+
+        print(f"Phase 1c: {len(sr_rows)} census rows -> {added_sr} new Conditional/Unsatisfactory DOTs added")
+    except Exception as e:
+        print(f"Phase 1c WARNING: safety rating census pull failed: {e}")
+
+    # Rebuild from dots dict so Phase 1b/1c additions are included
+    all_carriers = list(dots.values())
+    print(f"Phase 1 complete: {len(all_carriers)} carriers "
+          f"({len(fresh_slice)} fresh + {len(backlog_slice)} backlog + {len(all_carriers) - len(merged)} violation-only)")
+    return all_carriers
 
 
 # ── Phase 2: Cross-Run Deduplication ─────────────────────────────────────────
@@ -258,8 +320,8 @@ def get_safer_phone(dot):
                 clean = re.sub(r"[\s\-\.]", "-", p.strip())
                 if clean not in skip:
                     return clean
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  SAFER phone lookup failed for DOT {dot}: {e}")
     return ""
 
 
@@ -287,7 +349,7 @@ def enrich_qcmobile(carriers):
                 units = int(cd.get("totalPowerUnits") or 0)
             except (ValueError, TypeError):
                 units = 0
-            if units < 2 or units > 50:
+            if units < 5 or units > 200:
                 time.sleep(0.5)
                 continue
 
@@ -325,14 +387,32 @@ def enrich_qcmobile(carriers):
                 if "safety_rating" not in c["signals"]:
                     c["signals"].append("safety_rating")
 
+            # Census email + cell_phone lookup (free, no auth)
+            try:
+                census_url = (
+                    "https://data.transportation.gov/resource/az4n-8mr2.json?"
+                    + "$where=" + urllib.parse.quote(f"dot_number='{dot}'")
+                    + "&$select=" + urllib.parse.quote("email_address,cell_phone,company_officer_1")
+                    + "&$limit=1"
+                )
+                with urllib.request.urlopen(census_url, timeout=10) as cresp:
+                    census_rows = json.loads(cresp.read().decode("utf-8"))
+                if census_rows:
+                    cr = census_rows[0]
+                    c["census_email"] = (cr.get("email_address") or "").strip()
+                    c["census_cell"] = (cr.get("cell_phone") or "").strip()
+                    c["census_officer"] = (cr.get("company_officer_1") or "").strip()
+            except Exception as e:
+                print(f"  Census lookup failed for DOT {dot}: {e}")
+
             qualified.append(c)
             if (i + 1) % 50 == 0:
                 print(f"  QCMobile: {i+1}/{len(carriers)} checked, {len(qualified)} qualified so far")
-        except Exception:
-            pass  # Skip on timeout/error
+        except Exception as e:
+            print(f"  WARNING: QCMobile failed for DOT {dot}: {e}")
         time.sleep(0.5)
 
-    print(f"Phase 3a complete: {len(qualified)}/{len(carriers)} qualified (fleet 2-50, active, US)")
+    print(f"Phase 3a complete: {len(qualified)}/{len(carriers)} qualified (fleet 5-200, active, US)")
     return qualified
 
 
@@ -354,7 +434,8 @@ def scrape_csa_scores(dot):
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
             html = resp.read().decode("utf-8", errors="ignore")
-    except Exception:
+    except Exception as e:
+        print(f"  CSA scrape failed for DOT {dot}: {e}")
         return {}
 
     # Regex patterns for each BASIC percentile score in the SMS HTML
@@ -558,8 +639,31 @@ def main():
                        "total_enriched": 0, "carriers": []}, f)
         return
 
+    # Prioritize carriers for enrichment: safety_rating > oos > violation_history
+    # This ensures rarer, higher-value signals get enriched first when batch is capped
+    def _signal_priority(c):
+        """Balanced priority: rotate through signals so all campaigns get fed."""
+        sigs = c.get("signals", [])
+        if "safety_rating" in sigs:
+            return 0
+        if "oos" in sigs:
+            return 1
+        if "violation_history" in sigs:
+            return 2
+        return 3
+
+    carriers.sort(key=_signal_priority)
+    if len(carriers) > ENRICH_BATCH:
+        print(f"Batch cap: {len(carriers)} carriers -> taking top {ENRICH_BATCH} "
+              f"(prioritized by signal: safety_rating > oos > violation_history)")
+        carriers = carriers[:ENRICH_BATCH]
+
     carriers = enrich_qcmobile(carriers)
-    carriers = enrich_csa(carriers)
+    # CSA scraping disabled — FMCSA SMS site (ai.fmcsa.dot.gov) is fully bot-blocked.
+    # Every request times out at 15s. Re-enable when we have a headless browser solution
+    # or an alternative CSA data source.
+    # carriers = enrich_csa(carriers)
+    print("Phase 3b: CSA scraping SKIPPED (bot-blocked — all requests timeout)")
     carriers = score_carriers(carriers)
 
     # Assign campaign to each carrier

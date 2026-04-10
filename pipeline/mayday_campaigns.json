@@ -1,0 +1,63 @@
+[
+  {
+    "name": "MayDay V3 - FMCSA Signal Hub",
+    "id": "ebfaf120-6fef-48b5-b2e2-0bb86f58e390",
+    "accounts": [
+      "brandon@nowcompliance.org",
+      "haley@nowcompliance.org",
+      "karen@nowcompliance.org",
+      "megan@nowcompliance.org",
+      "chad@fileflobinder.com"
+    ]
+  },
+  {
+    "name": "MayDay V3 - OSHA Contractor Snapshot",
+    "id": "91ef780e-c33c-4f4b-ab69-bcca8484b501",
+    "accounts": [
+      "brandon@lookcompliance.com",
+      "haley@lookcompliance.com",
+      "karen@lookcompliance.com",
+      "megan@lookcompliance.com"
+    ]
+  },
+  {
+    "name": "MayDay V3 - EPA Compliance Snapshot",
+    "id": "c3d7fe45-e410-4827-be2c-ab78f458e57a",
+    "accounts": [
+      "brandon@nowregulation.com",
+      "haley@nowregulation.com",
+      "karen@nowregulation.com",
+      "megan@nowregulation.com"
+    ]
+  },
+  {
+    "name": "MayDay V3 - Healthcare Provider License Check",
+    "id": "d428f3b7-46a8-4d64-b827-327d30b6ad2e",
+    "accounts": [
+      "brandon@instantoperations.com",
+      "haley@instantoperations.com",
+      "karen@instantoperations.com",
+      "megan@instantoperations.com"
+    ]
+  },
+  {
+    "name": "MayDay V3 - Michigan Cannabis License Check",
+    "id": "64cb3947-d817-4ccd-bf77-25f6c09b3121",
+    "accounts": [
+      "chad@tryfileflo.com",
+      "cgriffith@tryfileflo.com",
+      "chadgriffith@tryfileflo.com",
+      "griffith@tryfileflo.com"
+    ]
+  },
+  {
+    "name": "MayDay V3 - FAA Enforcement Lookup",
+    "id": "9cbcfd3d-74ae-4c57-9d5d-1c176db574a0",
+    "accounts": [
+      "chad@meetfileflo.org",
+      "cgriffith@meetfileflo.org",
+      "chadgriffith@meetfileflo.org",
+      "griffith@meetfileflo.org"
+    ]
+  }
+]
