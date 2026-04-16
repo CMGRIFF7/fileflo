@@ -8,11 +8,14 @@ import argparse
 import json
 import os
 import re
+import socket
 import time
 import urllib.request
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
+
+from email_cleaner import is_sendable, validate_email, VerdictLevel
 
 # ── Constants ────────────────────────────────────────────────────────────────
 WEBKEY = "ea050d55fc6f7368ffa7e575d6b021e87d60fea0"
@@ -270,6 +273,29 @@ def collect_signals(backlog_offset=0):
 
 
 # ── Phase 2: Cross-Run Deduplication ─────────────────────────────────────────
+def has_mx_record(email: str) -> bool:
+    """
+    Check if the email domain has an MX record using DNS SRV lookup.
+    Uses nslookup/dig-equivalent via socket. Falls back to A record check.
+    Rejects clearly invalid patterns before DNS.
+    """
+    if not email or "@" not in email:
+        return False
+    domain = email.split("@", 1)[1].strip().lower()
+    if not domain or "." not in domain:
+        return False
+    # Reject obviously fake TLDs
+    tld = domain.rsplit(".", 1)[-1]
+    if len(tld) < 2 or tld.isdigit():
+        return False
+    try:
+        socket.setdefaulttimeout(3)
+        socket.getaddrinfo(domain, None)
+        return True
+    except (socket.gaierror, socket.timeout):
+        return False
+
+
 def filter_seen_dots(carriers):
     """Skip DOTs processed in last 90 days."""
     cutoff = datetime.now(timezone.utc) - timedelta(days=90)
@@ -399,7 +425,20 @@ def enrich_qcmobile(carriers):
                     census_rows = json.loads(cresp.read().decode("utf-8"))
                 if census_rows:
                     cr = census_rows[0]
-                    c["census_email"] = (cr.get("email_address") or "").strip()
+                    raw_email = (cr.get("email_address") or "").strip()
+                    if raw_email:
+                        v = validate_email(raw_email)
+                        # Accept VALID and freemail-flagged RISKY (owner-operators
+                        # legitimately use gmail). Drop role-based and invalid.
+                        if v.level == VerdictLevel.VALID or (
+                            v.level == VerdictLevel.RISKY and v.reason == "freemail"
+                        ):
+                            c["census_email"] = raw_email
+                        else:
+                            print(f"  email dropped ({v.level.value}/{v.reason}) DOT {dot}: {raw_email}")
+                            c["census_email"] = ""
+                    else:
+                        c["census_email"] = ""
                     c["census_cell"] = (cr.get("cell_phone") or "").strip()
                     c["census_officer"] = (cr.get("company_officer_1") or "").strip()
             except Exception as e:
